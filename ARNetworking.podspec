@@ -31,7 +31,7 @@ TODO: Add long description of the pod here.
   s.ios.deployment_target = '7.0'
 
   s.source_files = 'ARNetworking/ARNetworking.h','ARNetworking/ARNetworking.m'
-  ss.public_header_files = 'ARNetworking/ARNetworking/*.{h}'
+  ss.public_header_files = 'ARNetworking/*.{h}'
   
   s.dependency 'AFNetworking'
 
