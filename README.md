@@ -1,3 +1,3 @@
 # ARNetworking
 
-pod 'ARNetworking', git: 'https://github.com/idean506/ARNetworking.git'
+pod 'ARNetworking', git: 'https://github.com/deanyang506/ARNetworking.git'
