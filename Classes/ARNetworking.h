@@ -19,7 +19,6 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 
 @interface ARNetworking : NSObject
 
-@property (nonatomic, strong, readonly) AFHTTPSessionManager *sessionManager;
 @property (nonatomic, strong, readonly) NSURLRequest *request;
 @property (nonatomic, strong, readonly) NSHTTPURLResponse *httpURLResponse;
 

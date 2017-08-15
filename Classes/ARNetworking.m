@@ -11,6 +11,8 @@
 
 #pragma mark -  AFHTTPSessionManagerCategory
 
+static NSString *const sessionDescription = @"arnetworking_session";
+
 typedef void(^ARDataTaskDidReceiveDataBlock)(NSURLSession *session,NSURLSessionDataTask *dataTask,NSData *data);
 
 @interface AFHTTPSessionManager(ARNetworking)
@@ -22,10 +24,10 @@ typedef void(^ARDataTaskDidReceiveDataBlock)(NSURLSession *session,NSURLSessionD
 static const char ARDataTaskDidReceiveDataBlockKey;
 
 - (void)ar_URLSession:(NSURLSession *)session
-          dataTask:(NSURLSessionDataTask *)dataTask
+             dataTask:(NSURLSessionDataTask *)dataTask
        didReceiveData:(NSData *)data {
     
-    if (self.ar_dataTaskDidReceiveDataBlock) {
+    if ([self.session.sessionDescription isEqualToString:sessionDescription] && self.ar_dataTaskDidReceiveDataBlock) {
         self.ar_dataTaskDidReceiveDataBlock(session, dataTask, data);
     } else {
         [self ar_URLSession:session dataTask:dataTask didReceiveData:data];
@@ -47,6 +49,7 @@ static const char ARDataTaskDidReceiveDataBlockKey;
 @interface ARNetworking(Ext)
 @property (nonatomic, strong) NSURLRequest *request;
 @property (nonatomic, strong) NSHTTPURLResponse *httpURLResponse;
+@property (nonatomic, strong) AFHTTPSessionManager *sessionManager;
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error;
@@ -59,8 +62,8 @@ didCompleteWithError:(NSError *)error;
 @property (nonatomic, strong) NSProgress *progress;
 @property (nonatomic, assign) unsigned long long totalBytesRead;
 - (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session
-                                       dataTask:(NSURLSessionDataTask *)dataTask
-                             didReceiveResponse:(NSURLResponse *)response;
+                                     dataTask:(NSURLSessionDataTask *)dataTask
+                           didReceiveResponse:(NSURLResponse *)response;
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data;
@@ -126,13 +129,13 @@ didCompleteWithError:(NSError *)error;
 
 @interface ARNetworkingDownloadTask : ARNetworkingDataTask
 /**
-    这里不用DownloadTask的原因：
-    1、不知道系统现在的临时目录文件名，只有完成的时候才知道
-    2、不能中途知道具体下载的data, 因为是直接保存到了临时文件
-    3、如果用户kill程序，就没办法保存到resumeData, iOS8及以上可以用backgroundSessionConfigurationWithIdentifier
-    4、如果保存不到resumeData就没办法断点续传
-    5、kill掉的程序临时目录不定时会被删除
-    6、只有下载完成的时候才能将文件转移到destinationPath，此间是没有该文件的，对于调用改类的业务很不好控制
+ 这里不用DownloadTask的原因：
+ 1、不知道系统现在的临时目录文件名，只有完成的时候才知道
+ 2、不能中途知道具体下载的data, 因为是直接保存到了临时文件
+ 3、如果用户kill程序，就没办法保存到resumeData, iOS8及以上可以用backgroundSessionConfigurationWithIdentifier
+ 4、如果保存不到resumeData就没办法断点续传
+ 5、kill掉的程序临时目录不定时会被删除
+ 6、只有下载完成的时候才能将文件转移到destinationPath，此间是没有该文件的，对于调用改类的业务很不好控制
  */
 // @property (nonatomic, strong) NSURLSessionDownloadTask *sessionDownloadTask;
 @property (nonatomic, strong) NSString *destinationPath;
@@ -143,13 +146,13 @@ didCompleteWithError:(NSError *)error;
 @implementation ARNetworkingDownloadTask
 
 + (void)load {
-    Method orignialMethod = class_getInstanceMethod([AFHTTPSessionManager class],@selector(URLSession:dataTask:didReceiveData:));
-    Method swappedMethod = class_getInstanceMethod([AFHTTPSessionManager class], @selector(ar_URLSession:dataTask:didReceiveData:));
+    Method orignialMethod = class_getInstanceMethod([AFURLSessionManager class],@selector(URLSession:dataTask:didReceiveData:));
+    Method swappedMethod = class_getInstanceMethod([AFURLSessionManager class], @selector(ar_URLSession:dataTask:didReceiveData:));
     method_exchangeImplementations(orignialMethod, swappedMethod);
 }
 
 - (void)dealloc {
-
+    
     self.sessionManager.dataTaskDidReceiveDataBlock = nil;
     
     if (_outputStream) {
@@ -277,7 +280,7 @@ didCompleteWithError:(NSError *)error;
             }
         }
     }];
-
+    
     [self.sessionManager setTaskDidSendBodyDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, int64_t bytesSent, int64_t totalBytesSent, int64_t totalBytesExpectedToSend) {
         __strong typeof(weakSelf) self = weakSelf;
         self.progress.totalUnitCount = totalBytesSent;
@@ -316,6 +319,7 @@ didCompleteWithError:(NSError *)error;
     if (self = [super init]) {
         self.sessionManager = [AFHTTPSessionManager manager];
         self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain",nil];
+        self.sessionManager.session.sessionDescription = sessionDescription;
         
         self.timeoutInterval = 15.0f;
         self.shouldUseCookie = YES;
@@ -372,9 +376,9 @@ didCompleteWithError:(NSError *)error;
 - (void)resume {
     
     if (_isResumed) {
-//        [[NSException exceptionWithName:@"ARNetworkException"
-//                                 reason:@"Network is resumed"
-//                               userInfo:nil] raise];
+        //        [[NSException exceptionWithName:@"ARNetworkException"
+        //                                 reason:@"Network is resumed"
+        //                               userInfo:nil] raise];
         [self cancel];
     }
     
