@@ -318,7 +318,7 @@ didCompleteWithError:(NSError *)error;
 - (instancetype)init {
     if (self = [super init]) {
         self.sessionManager = [AFHTTPSessionManager manager];
-        self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain",nil];
+        self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", nil];
         self.sessionManager.session.sessionDescription = sessionDescription;
         
         self.timeoutInterval = 15.0f;
