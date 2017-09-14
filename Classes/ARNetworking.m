@@ -307,6 +307,7 @@ didCompleteWithError:(NSError *)error;
 @interface ARNetworking()
 @property (nonatomic, strong) AFHTTPSessionManager *sessionManager;
 @property (nonatomic, strong) NSMutableDictionary *headers;
+@property (nonatomic, strong) dispatch_queue_t queue;
 @end
 
 @implementation ARNetworking {
@@ -323,6 +324,8 @@ didCompleteWithError:(NSError *)error;
         
         self.timeoutInterval = 15.0f;
         self.shouldUseCookie = YES;
+        
+        self.queue = dispatch_queue_create("ARNetworking", DISPATCH_QUEUE_SERIAL);
         
         _isResumed = NO;
         _isCancelled = NO;
@@ -375,36 +378,41 @@ didCompleteWithError:(NSError *)error;
 
 - (void)resume {
     
-    if (_isResumed) {
-        //        [[NSException exceptionWithName:@"ARNetworkException"
-        //                                 reason:@"Network is resumed"
-        //                               userInfo:nil] raise];
+    if (self->_isResumed) {
         [self cancel];
     }
     
-    _isResumed = YES;
-    _isCancelled = NO;
+    self->_isResumed = YES;
+    self->_isCancelled = NO;
     
-    NSMutableURLRequest *req = [self.request mutableCopy];
-    req.timeoutInterval = self.timeoutInterval;
-    req.HTTPShouldHandleCookies = self.shouldUseCookie;
-    for (NSString *key in self.headers.allKeys) {
-        [req setValue:self.headers[key] forHTTPHeaderField:key];
-    }
-    
-    self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
-    
-    __strong __block ARNetworking *strongSelf = self;
-    _resumeCancel = ^{
-        strongSelf = nil;
-    };
-    [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
-        [strongSelf.sessionManager.session finishTasksAndInvalidate];
-        [strongSelf URLSession:session task:task didCompleteWithError:error];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    __weak typeof(self) weakSelf = self;
+    os_block_t resume = ^{
+        __weak typeof(weakSelf) self = weakSelf;
+        
+        NSMutableURLRequest *req = [self.request mutableCopy];
+        req.timeoutInterval = self.timeoutInterval;
+        req.HTTPShouldHandleCookies = self.shouldUseCookie;
+        for (NSString *key in self.headers.allKeys) {
+            [req setValue:self.headers[key] forHTTPHeaderField:key];
+        }
+        
+        self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
+        
+        __strong __block ARNetworking *strongSelf = self;
+        _resumeCancel = ^{
             strongSelf = nil;
-        });
-    }];
+        };
+        [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
+            [strongSelf.sessionManager.session finishTasksAndInvalidate];
+            [strongSelf URLSession:session task:task didCompleteWithError:error];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                strongSelf = nil;
+            });
+        }];
+    };
+    
+    dispatch_async(self.queue, resume);
+    
 }
 
 - (void)cancel {
