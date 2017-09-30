@@ -7,6 +7,7 @@
 //
 
 #import "ARNetworking.h"
+#import <AFNetworking/AFNetworking.h>
 #import <objc/runtime.h>
 
 #pragma mark -  AFHTTPSessionManagerCategory
@@ -318,6 +319,8 @@ didCompleteWithError:(NSError *)error;
 - (instancetype)init {
     if (self = [super init]) {
         self.sessionManager = [AFHTTPSessionManager manager];
+        self.sessionManager.securityPolicy.allowInvalidCertificates = YES;
+        self.sessionManager.securityPolicy.validatesDomainName = NO;
         self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", nil];
         self.sessionManager.session.sessionDescription = sessionDescription;
         
