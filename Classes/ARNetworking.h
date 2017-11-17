@@ -13,6 +13,7 @@
 @class ARNetworkingUploadTask;
 @class ARNetworkingDownloadTask;
 
+typedef void(^ARNetworkDidReceiveResponseCallback)(NSHTTPURLResponse *httpURLResponse);
 typedef void(^ARNetworkProgressCallback)(NSProgress *progress);
 typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 
@@ -30,6 +31,8 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 /** 设置请求参数 [resume]前有效 */
 @property (nonatomic, strong) id parameters;
 
+/** 请求接收到响应 */
+@property (nonatomic, copy) ARNetworkDidReceiveResponseCallback didReceiveResponseCallback;
 /** 上传进度回调 */
 @property (nonatomic, copy) ARNetworkProgressCallback uploadProgressCallback;
 /** 下载是接收Data进度回调 */
@@ -39,8 +42,8 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 
 
 /**
-    自定义请求方式
-    OPTIONS,HEAD,GET,POST,PUT,DELETE,CONNECT
+ 自定义请求方式
+ OPTIONS,HEAD,GET,POST,PUT,DELETE,CONNECT
  */
 - (instancetype)initWithMethod:(NSString *)method
                            url:(NSString *)url
@@ -48,21 +51,21 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
              completionHandler:(ARNetworkCompletionHandler)completionHandler;
 
 /**
-    GET
+ GET
  */
 + (ARNetworking *)GETWithUrl:(NSString *)url
                   parameters:(id)parameters
            completionHandler:(ARNetworkCompletionHandler)completionHandler;
 
 /**
-    POST
-*/
+ POST
+ */
 + (ARNetworking *)POSTWithUrl:(NSString *)url
                    parameters:(id)parameters
             completionHandler:(ARNetworkCompletionHandler)completionHandler;
 
 /**
-    Download
+ Download
  */
 + (ARNetworking *)DownloadWithUrl:(NSString *)url
                       destination:(NSString *)destinationPath
@@ -70,7 +73,7 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
                 completionHandler:(ARNetworkCompletionHandler)completionHandler;
 
 /**
-    Upload
+ Upload
  */
 + (ARNetworking *)UploadWithUrl:(NSString *)url
                        fromFile:(NSString *)fileUrl

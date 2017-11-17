@@ -108,6 +108,11 @@ didCompleteWithError:(NSError *)error;
 
 - (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
     self.httpURLResponse = (NSHTTPURLResponse *)response;
+    if (self.didReceiveResponseCallback) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.didReceiveResponseCallback(self.httpURLResponse);
+        });
+    }
     self.progress = [NSProgress progressWithTotalUnitCount:0];
     self.progress.completedUnitCount = self.httpURLResponse.expectedContentLength;
     return NSURLSessionResponseAllow;
@@ -367,7 +372,10 @@ didCompleteWithError:(NSError *)error;
 }
 
 + (ARNetworking *)DownloadWithUrl:(NSString *)url destination:(NSString *)destinationPath offset:(NSUInteger)offset completionHandler:(ARNetworkCompletionHandler)completionHandler {
-    return [ARNetworkingDownloadTask DownloadWithUrl:url destination:destinationPath offset:offset completionHandler:completionHandler];
+    ARNetworking *downloadNetworking = [ARNetworkingDownloadTask DownloadWithUrl:url destination:destinationPath offset:offset completionHandler:completionHandler];
+    downloadNetworking.sessionManager.responseSerializer = [AFHTTPResponseSerializer serializer];
+    downloadNetworking.sessionManager.responseSerializer.acceptableStatusCodes = [NSIndexSet indexSetWithIndex:206];
+    return downloadNetworking;
 }
 
 + (ARNetworking *)UploadWithUrl:(NSString *)url fromFile:(NSString *)fileUrl paramName:(NSString *)paramName completionHandler:(ARNetworkCompletionHandler)completionHandler {
@@ -408,6 +416,10 @@ didCompleteWithError:(NSError *)error;
             strongSelf = nil;
         });
     }];
+    
+    if ([self isMemberOfClass:[ARNetworking class]]) {
+        [[self.sessionManager dataTaskWithRequest:self.request completionHandler:nil] resume];
+    }
 }
 
 - (void)cancel {
@@ -444,7 +456,14 @@ didCompleteWithError:(NSError *)error;
 #pragma mark - private method
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
-    ;
+    if ([self isMemberOfClass:[ARNetworking class]]) {
+        if ([task.response isKindOfClass:[NSHTTPURLResponse class]]) {
+            self.httpURLResponse = (NSHTTPURLResponse *)task.response;
+        }
+        if (self.completionHandler) {
+            self.completionHandler(error, nil);
+        }
+    }
 }
 
 // !!!: 验证https证书
