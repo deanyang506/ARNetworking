@@ -19,6 +19,8 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 
 @interface ARNetworking : NSObject
 
++ (void)setUserAgent:(NSString *)userAgent;
+
 @property (nonatomic, strong, readonly) NSURLRequest *request;
 @property (nonatomic, strong, readonly) NSHTTPURLResponse *httpURLResponse;
 

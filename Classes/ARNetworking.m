@@ -321,6 +321,11 @@ didCompleteWithError:(NSError *)error;
     BOOL _isCancelled;
 }
 
+static NSString *UserAgent = nil;
++ (void)setUserAgent:(NSString *)userAgent {
+    UserAgent = userAgent;
+}
+
 - (instancetype)init {
     if (self = [super init]) {
         self.sessionManager = [AFHTTPSessionManager manager];
@@ -405,6 +410,10 @@ didCompleteWithError:(NSError *)error;
     req.HTTPShouldHandleCookies = self.shouldUseCookie;
     for (NSString *key in self.headers.allKeys) {
         [req setValue:self.headers[key] forHTTPHeaderField:key];
+    }
+    
+    if (UserAgent) {
+        [req setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
     }
     
     self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
