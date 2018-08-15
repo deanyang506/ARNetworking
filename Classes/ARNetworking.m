@@ -348,10 +348,6 @@ static NSString *UserAgent = nil;
                     parameters:(id)parameters
              completionHandler:(ARNetworkCompletionHandler)completionHandler {
     if (self = [self init]) {
-        NSURL *_URL = [NSURL URLWithString:url];
-        NSString *versionCode = [NSString stringWithFormat:@"versionCode=%@",[[NSBundle mainBundle] infoDictionary][@"CFBundleVersion"]];
-        url = [url stringByAppendingFormat:@"%@%@",_URL.query ? @"&" : @"?",versionCode];
-        
         NSError *error = nil;
         NSMutableURLRequest *request = [self.sessionManager.requestSerializer requestWithMethod:method URLString:url parameters:nil error:&error];
         if (error || request == nil) {
