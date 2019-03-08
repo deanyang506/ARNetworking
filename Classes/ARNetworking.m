@@ -364,6 +364,14 @@ static NSString *UserAgent = nil;
     return self;
 }
 
+- (void)setCompletionQueue:(dispatch_queue_t)completionQueue {
+    self.sessionManager.completionQueue = completionQueue;
+}
+
+- (dispatch_queue_t)completionQueue {
+    return self.sessionManager.completionQueue;
+}
+
 #pragma mark - public initial method
 
 + (ARNetworking *)GETWithUrl:(NSString *)url parameters:(id)parameters completionHandler:(ARNetworkCompletionHandler)completionHandler {
@@ -421,7 +429,7 @@ static NSString *UserAgent = nil;
     [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
         [strongSelf.sessionManager.session finishTasksAndInvalidate];
         [strongSelf URLSession:session task:task didCompleteWithError:error];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_global_queue(0, 0), ^{
             strongSelf = nil;
         });
     }];

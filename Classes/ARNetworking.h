@@ -42,6 +42,8 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 /** 请求完成回调 */
 @property (nonatomic, copy) ARNetworkCompletionHandler completionHandler;
 
+/** 完成后回调队列 */
+@property (nonatomic, strong) dispatch_queue_t completionQueue;
 
 /**
  自定义请求方式
