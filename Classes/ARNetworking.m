@@ -51,6 +51,7 @@ static const char ARDataTaskDidReceiveDataBlockKey;
 @property (nonatomic, strong) NSURLRequest *request;
 @property (nonatomic, strong) NSHTTPURLResponse *httpURLResponse;
 @property (nonatomic, strong) AFHTTPSessionManager *sessionManager;
+@property (nonatomic, strong) ARNetworking *strongSelf;
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error;
@@ -85,6 +86,7 @@ didCompleteWithError:(NSError *)error;
             if (self.completionHandler) {
                 self.completionHandler(error, responseObject);
             }
+            self.strongSelf = nil;
         }
     }];
     
@@ -229,6 +231,7 @@ didCompleteWithError:(NSError *)error;
                 if (self.completionHandler) {
                     self.completionHandler(self.outputStream.streamError, nil);
                 }
+                self.strongSelf = nil;
             }
             return;
         }
@@ -284,6 +287,7 @@ didCompleteWithError:(NSError *)error;
             if (self.completionHandler) {
                 self.completionHandler(error, responseObject);
             }
+            self.strongSelf = nil;
         }
     }];
     
@@ -316,10 +320,24 @@ didCompleteWithError:(NSError *)error;
 @end
 
 @implementation ARNetworking {
-    os_block_t _resumeCancel;
     BOOL _isResumed;
     BOOL _isCancelled;
+    ARNetworking *_strongSelf;
 }
+
+- (void)dealloc {
+    NSLog(@"[ARNetworking]dealloc");
+}
+
+- (ARNetworking *)strongSelf {
+    return _strongSelf;
+}
+
+- (void)setStrongSelf:(ARNetworking *)strongSelf {
+    _strongSelf = strongSelf;
+}
+
+#pragma mark -
 
 static NSString *UserAgent = nil;
 + (void)setUserAgent:(NSString *)userAgent {
@@ -422,16 +440,11 @@ static NSString *UserAgent = nil;
     
     self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
     
-    __strong __block ARNetworking *strongSelf = self;
-    _resumeCancel = ^{
-        strongSelf = nil;
-    };
+    self.strongSelf = self;
+    __weak ARNetworking *weakSelf = self;
     [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
-        [strongSelf.sessionManager.session finishTasksAndInvalidate];
-        [strongSelf URLSession:session task:task didCompleteWithError:error];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_global_queue(0, 0), ^{
-            strongSelf = nil;
-        });
+        [weakSelf.sessionManager.session finishTasksAndInvalidate];
+        [weakSelf URLSession:session task:task didCompleteWithError:error];
     }];
     
     if ([self isMemberOfClass:[ARNetworking class]]) {
@@ -444,11 +457,9 @@ static NSString *UserAgent = nil;
         return;
     }
     
-    _resumeCancel ? _resumeCancel() : nil;
     [self.sessionManager.operationQueue cancelAllOperations];
     [self.sessionManager.session invalidateAndCancel];
     _isCancelled = YES;
-    _isResumed = NO;
 }
 
 #pragma mark - setter
@@ -480,11 +491,13 @@ static NSString *UserAgent = nil;
         if (self.completionHandler) {
             self.completionHandler(error, nil);
         }
+        self.strongSelf = nil;
     }
 }
 
 // !!!: 验证https证书
 
 @end
+
 
 
