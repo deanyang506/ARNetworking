@@ -349,7 +349,7 @@ static NSString *UserAgent = nil;
         self.sessionManager = [AFHTTPSessionManager manager];
         self.sessionManager.securityPolicy.allowInvalidCertificates = YES;
         self.sessionManager.securityPolicy.validatesDomainName = NO;
-        self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", nil];
+        self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", @"application/octet-stream", nil];
         self.sessionManager.session.sessionDescription = sessionDescription;
         
         self.timeoutInterval = 15.0f;
