@@ -33,6 +33,6 @@ TODO: Add long description of the pod here.
   s.source_files = 'Classes/ARNetworking.h','Classes/ARNetworking.m'
   s.public_header_files = 'Classes/*.{h}'
   
-  s.dependency 'AFNetworking'
+  s.dependency 'AFNetworking/NSURLSession','~> 3.0'
 
 end

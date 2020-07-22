@@ -7,7 +7,8 @@
 //
 
 #import "ARNetworking.h"
-#import <AFNetworking/AFNetworking.h>
+#import <AFNetworking/AFHTTPSessionManager.h>
+#import <AFNetworking/AFURLSessionManager.h>
 #import <objc/runtime.h>
 
 #pragma mark -  AFHTTPSessionManagerCategory
