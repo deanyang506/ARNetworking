@@ -124,10 +124,9 @@ didCompleteWithError:(NSError *)error;
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     self.totalBytesRead += (long long)data.length;
     self.progress.totalUnitCount = self.totalBytesRead;
-    __weak typeof(self) wself = self;
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (wself.downloadProgressCallback) {
-            wself.downloadProgressCallback(wself.progress);
+        if (self.downloadProgressCallback) {
+            self.downloadProgressCallback(self.progress);
         }
     });
 }
@@ -327,6 +326,7 @@ didCompleteWithError:(NSError *)error;
 }
 
 - (void)dealloc {
+    [self.sessionManager invalidateSessionCancelingTasks:YES];
     NSLog(@"[ARNetworking]dealloc");
 }
 
@@ -419,10 +419,7 @@ static NSString *UserAgent = nil;
 - (void)resume {
     
     if (_isResumed) {
-        //        [[NSException exceptionWithName:@"ARNetworkException"
-        //                                 reason:@"Network is resumed"
-        //                               userInfo:nil] raise];
-        [self cancel];
+        return;
     }
     
     _isResumed = YES;
@@ -444,8 +441,9 @@ static NSString *UserAgent = nil;
     self.strongSelf = self;
     __weak ARNetworking *weakSelf = self;
     [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
-        [weakSelf.sessionManager.session finishTasksAndInvalidate];
-        [weakSelf URLSession:session task:task didCompleteWithError:error];
+        __strong typeof(weakSelf) self = weakSelf;
+        [self.sessionManager.session finishTasksAndInvalidate];
+        [self URLSession:session task:task didCompleteWithError:error];
     }];
     
     if ([self isMemberOfClass:[ARNetworking class]]) {
@@ -495,8 +493,6 @@ static NSString *UserAgent = nil;
         self.strongSelf = nil;
     }
 }
-
-// !!!: 验证https证书
 
 @end
 
