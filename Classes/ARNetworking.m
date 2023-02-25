@@ -63,7 +63,7 @@ didCompleteWithError:(NSError *)error;
 @interface ARNetworkingDataTask : ARNetworking
 @property (nonatomic, strong) NSURLSessionDataTask *sessionDataTask;
 @property (nonatomic, strong) NSProgress *progress;
-@property (nonatomic, assign) unsigned long long totalBytesRead;
+@property (nonatomic, assign) unsigned long long completedBytesRead;
 - (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session
                                      dataTask:(NSURLSessionDataTask *)dataTask
                            didReceiveResponse:(NSURLResponse *)response;
@@ -117,13 +117,13 @@ didCompleteWithError:(NSError *)error;
         });
     }
     self.progress = [NSProgress progressWithTotalUnitCount:0];
-    self.progress.completedUnitCount = self.httpURLResponse.expectedContentLength;
+    self.progress.totalUnitCount = self.httpURLResponse.expectedContentLength;
     return NSURLSessionResponseAllow;
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
-    self.totalBytesRead += (long long)data.length;
-    self.progress.totalUnitCount = self.totalBytesRead;
+    self.completedBytesRead += (long long)data.length;
+    self.progress.completedUnitCount = self.completedBytesRead;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (self.downloadProgressCallback) {
             self.downloadProgressCallback(self.progress);
@@ -180,7 +180,7 @@ didCompleteWithError:(NSError *)error;
 - (void)resume {
     [self.headers setValue:[NSString stringWithFormat:@"bytes=%lu-",self.offset] forKey:@"Range"];
     
-    self.totalBytesRead = 0;
+    self.completedBytesRead = 0;
     self.outputStream = [NSOutputStream outputStreamToFileAtPath:self.destinationPath append:YES];
     
     __weak typeof(self) weakSelf = self;
@@ -293,8 +293,8 @@ didCompleteWithError:(NSError *)error;
     
     [self.sessionManager setTaskDidSendBodyDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, int64_t bytesSent, int64_t totalBytesSent, int64_t totalBytesExpectedToSend) {
         __strong typeof(weakSelf) self = weakSelf;
-        self.progress.totalUnitCount = totalBytesSent;
-        self.progress.completedUnitCount = totalBytesExpectedToSend;
+        self.progress.totalUnitCount = totalBytesExpectedToSend;
+        self.progress.completedUnitCount = totalBytesSent;
         if (self.uploadProgressCallback) {
             self.uploadProgressCallback(self.progress);
         }
