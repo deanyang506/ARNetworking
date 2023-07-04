@@ -10,7 +10,6 @@
 
 @class ARNetworking;
 @class ARNetworkingDataTask;
-@class ARNetworkingUploadTask;
 @class ARNetworkingDownloadTask;
 
 typedef void(^ARNetworkDidReceiveResponseCallback)(NSHTTPURLResponse *httpURLResponse);
@@ -28,15 +27,11 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 @property (nonatomic, assign) NSTimeInterval timeoutInterval;
 /** 设置请求头 [resume]前有效 */
 @property (nonatomic, strong, readonly) NSMutableDictionary *headers;
-/** 是否使用cookie [resume]前有效 */
-@property (nonatomic, assign) BOOL shouldUseCookie;
 /** 设置请求参数 [resume]前有效 */
 @property (nonatomic, strong) id parameters;
 
 /** 请求接收到响应 */
 @property (nonatomic, copy) ARNetworkDidReceiveResponseCallback didReceiveResponseCallback;
-/** 上传进度回调 */
-@property (nonatomic, copy) ARNetworkProgressCallback uploadProgressCallback;
 /** 下载是接收Data进度回调 */
 @property (nonatomic, copy) ARNetworkProgressCallback downloadProgressCallback;
 /** 请求完成回调 */
@@ -75,15 +70,6 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
                       destination:(NSString *)destinationPath
                            offset:(NSUInteger)offset
                 completionHandler:(ARNetworkCompletionHandler)completionHandler;
-
-/**
- Upload
- */
-+ (ARNetworking *)UploadWithUrl:(NSString *)url
-                       fromFile:(NSString *)fileUrl
-                      paramName:(NSString *)paramName
-              completionHandler:(ARNetworkCompletionHandler)completionHandler;
-
 
 - (void)resume;
 - (void)cancel;

@@ -13,116 +13,75 @@
 
 #pragma mark -  AFHTTPSessionManagerCategory
 
-static NSString *const sessionDescription = @"arnetworking_session";
-
-typedef void(^ARDataTaskDidReceiveDataBlock)(NSURLSession *session,NSURLSessionDataTask *dataTask,NSData *data);
-
-@interface AFHTTPSessionManager(ARNetworking)
-@property (nonatomic, copy) ARDataTaskDidReceiveDataBlock ar_dataTaskDidReceiveDataBlock;
-- (NSObject *)delegateForTask:(NSURLSessionTask *)task;
+@protocol ARNetworkingTaskDelegate <NSObject>
+@required
+- (void)dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data;
+- (NSURLSessionResponseDisposition *)dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response;
+- (void)task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error responseObject:(id)responseObject;
 @end
 
-@implementation AFHTTPSessionManager(ARNetworking)
+@interface NSURLSessionTaskProxy : NSObject
+@property (nonatomic, weak) id<ARNetworkingTaskDelegate> delegate;
+@end
+@implementation NSURLSessionTaskProxy
+@end
 
-static const char ARDataTaskDidReceiveDataBlockKey;
+@interface NSURLSessionTask(ARNetworking)
+@property (nonatomic, strong) NSURLSessionTaskProxy *proxy;
+@end
 
-- (void)ar_URLSession:(NSURLSession *)session
-             dataTask:(NSURLSessionDataTask *)dataTask
-       didReceiveData:(NSData *)data {
-    
-    if ([self.session.sessionDescription isEqualToString:sessionDescription] && self.ar_dataTaskDidReceiveDataBlock) {
-        self.ar_dataTaskDidReceiveDataBlock(session, dataTask, data);
-    } else {
-        [self ar_URLSession:session dataTask:dataTask didReceiveData:data];
+@implementation NSURLSessionTask(ARNetworking)
+
+static const char ARNetworkingTaskProxKey;
+- (NSURLSessionTaskProxy *)proxy {
+    NSURLSessionTaskProxy *proxy = nil;
+    @synchronized (self) {
+        proxy = (NSURLSessionTaskProxy *)objc_getAssociatedObject(self, &ARNetworkingTaskProxKey);
+        if (proxy == nil) {
+            proxy = [[NSURLSessionTaskProxy alloc] init];
+            objc_setAssociatedObject(self, &ARNetworkingTaskProxKey, proxy, OBJC_ASSOCIATION_RETAIN);
+        }
     }
+    return proxy;
 }
+@end
 
-- (void)setAr_dataTaskDidReceiveDataBlock:(ARDataTaskDidReceiveDataBlock)ar_dataTaskDidReceiveDataBlock {
-    objc_setAssociatedObject(self, &ARDataTaskDidReceiveDataBlockKey, ar_dataTaskDidReceiveDataBlock, OBJC_ASSOCIATION_COPY);
-}
-
-- (ARDataTaskDidReceiveDataBlock)ar_dataTaskDidReceiveDataBlock {
-    return (ARDataTaskDidReceiveDataBlock)objc_getAssociatedObject(self, &ARDataTaskDidReceiveDataBlockKey);
-}
-
+@interface AFHTTPSessionManager(ARNetworking)
+- (NSObject *)delegateForTask:(NSURLSessionTask *)task;
+@end
+@implementation AFHTTPSessionManager(ARNetworking)
 @end
 
 #pragma mark - ARNetworkingCategory
 
-@interface ARNetworking(Ext)
-@property (nonatomic, strong) NSURLRequest *request;
+@interface ARNetworking(Ext) <ARNetworkingTaskDelegate>
 @property (nonatomic, strong) NSHTTPURLResponse *httpURLResponse;
 @property (nonatomic, strong) AFHTTPSessionManager *sessionManager;
-@property (nonatomic, strong) ARNetworking *strongSelf;
-- (void)URLSession:(NSURLSession *)session
-              task:(NSURLSessionTask *)task
-didCompleteWithError:(NSError *)error;
+@property (nonatomic, strong) NSURLSessionDataTask *sessionDataTask;
 @end
 
 #pragma mark - ARNetworkingDataTask
 
 @interface ARNetworkingDataTask : ARNetworking
-@property (nonatomic, strong) NSURLSessionDataTask *sessionDataTask;
 @property (nonatomic, strong) NSProgress *progress;
 @property (nonatomic, assign) unsigned long long completedBytesRead;
-- (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session
-                                     dataTask:(NSURLSessionDataTask *)dataTask
-                           didReceiveResponse:(NSURLResponse *)response;
-- (void)URLSession:(NSURLSession *)session
-          dataTask:(NSURLSessionDataTask *)dataTask
-    didReceiveData:(NSData *)data;
 @end
 
 @implementation ARNetworkingDataTask
 
 - (void)resume {
+    self.completedBytesRead = 0;
     [super resume];
-    
-    __weak typeof(self) weakSelf = self;
-    self.sessionDataTask = [self.sessionManager dataTaskWithRequest:self.request completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (self) {
-            if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
-                self.httpURLResponse = (NSHTTPURLResponse *)response;
-            }
-            if (self.completionHandler) {
-                self.completionHandler(error, responseObject);
-            }
-            self.strongSelf = nil;
-        }
-    }];
-    
-    [self.sessionManager setDataTaskDidReceiveResponseBlock:^NSURLSessionResponseDisposition(NSURLSession * _Nonnull session, NSURLSessionDataTask * _Nonnull dataTask, NSURLResponse * _Nonnull response) {
-        __strong typeof(weakSelf) self = weakSelf;
-        return [self URLSession:session dataTask:dataTask didReceiveResponse:response];
-    }];
-    
-    [self.sessionManager setDataTaskDidReceiveDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionDataTask * _Nonnull dataTask, NSData * _Nonnull data) {
-        __strong typeof(weakSelf) self = weakSelf;
-        [self URLSession:session dataTask:dataTask didReceiveData:data];
-    }];
-    
-    [self.sessionDataTask resume];
 }
 
-- (void)cancel {
-    [super cancel];
-    [self.sessionDataTask cancel];
-}
-
-- (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
-    self.httpURLResponse = (NSHTTPURLResponse *)response;
-    if (self.didReceiveResponseCallback) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.didReceiveResponseCallback(self.httpURLResponse);
-        });
-    }
+- (NSURLSessionResponseDisposition *)dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
+    NSURLSessionResponseDisposition *disposition = [super dataTask:dataTask didReceiveResponse:response];
     self.progress = [NSProgress progressWithTotalUnitCount:0];
     self.progress.totalUnitCount = self.httpURLResponse.expectedContentLength;
-    return NSURLSessionResponseAllow;
+    return disposition;
 }
 
-- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
+- (void)dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     self.completedBytesRead += (long long)data.length;
     self.progress.completedUnitCount = self.completedBytesRead;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -146,24 +105,14 @@ didCompleteWithError:(NSError *)error;
  5、kill掉的程序临时目录不定时会被删除
  6、只有下载完成的时候才能将文件转移到destinationPath，此间是没有该文件的，对于调用改类的业务很不好控制
  */
-// @property (nonatomic, strong) NSURLSessionDownloadTask *sessionDownloadTask;
 @property (nonatomic, strong) NSString *destinationPath;
-@property (nonatomic, strong) NSOutputStream *outputStream;
 @property (nonatomic, assign) NSUInteger offset;
+@property (nonatomic, strong) NSOutputStream *outputStream;
 @end
 
 @implementation ARNetworkingDownloadTask
 
-+ (void)load {
-    Method orignialMethod = class_getInstanceMethod([AFURLSessionManager class],@selector(URLSession:dataTask:didReceiveData:));
-    Method swappedMethod = class_getInstanceMethod([AFURLSessionManager class], @selector(ar_URLSession:dataTask:didReceiveData:));
-    method_exchangeImplementations(orignialMethod, swappedMethod);
-}
-
 - (void)dealloc {
-    
-    self.sessionManager.dataTaskDidReceiveDataBlock = nil;
-    
     if (_outputStream) {
         [_outputStream close];
         _outputStream = nil;
@@ -174,21 +123,12 @@ didCompleteWithError:(NSError *)error;
     ARNetworkingDownloadTask *networkingDownloadTask = [[ARNetworkingDownloadTask alloc] initWithMethod:@"GET" url:url parameters:nil completionHandler:completionHandler];
     networkingDownloadTask.destinationPath = destinationPath;
     networkingDownloadTask.offset = offset;
-    
     return networkingDownloadTask;
 }
 
 - (void)resume {
     [self.headers setValue:[NSString stringWithFormat:@"bytes=%lu-",self.offset] forKey:@"Range"];
-    
-    self.completedBytesRead = 0;
     self.outputStream = [NSOutputStream outputStreamToFileAtPath:self.destinationPath append:YES];
-    
-    __weak typeof(self) weakSelf = self;
-    [self.sessionManager setAr_dataTaskDidReceiveDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionDataTask * _Nonnull dataTask, NSData * _Nonnull data) {
-        __strong typeof(weakSelf) self = weakSelf;
-        [self URLSession:session dataTask:dataTask didReceiveData:data];
-    }];
     
     [super resume];
     
@@ -201,21 +141,16 @@ didCompleteWithError:(NSError *)error;
     }
 }
 
-- (void)cancel {
-    [super cancel];
-}
-
-- (NSURLSessionResponseDisposition)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
-    
+- (NSURLSessionResponseDisposition *)dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
     if (((NSHTTPURLResponse *)response).statusCode == 206) {
         [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.outputStream open];
     }
     
-    return [super URLSession:session dataTask:dataTask didReceiveResponse:response];
+    return [super dataTask:dataTask didReceiveResponse:response];
 }
 
-- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
+- (void)dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data  {
     
     NSUInteger length = [data length];
     while (YES) {
@@ -236,87 +171,18 @@ didCompleteWithError:(NSError *)error;
             break;
         } else {
             [self cancel];
-            if (self.outputStream.streamError) {
-                if (self.completionHandler) {
-                    self.completionHandler(self.outputStream.streamError, nil);
-                }
-                self.strongSelf = nil;
-            }
+            [self task:self.sessionDataTask didCompleteWithError:self.outputStream.streamError ?: [NSError errorWithDomain:NSStringFromClass(self.class) code:-1 userInfo:@{NSLocalizedDescriptionKey:@"hasnotSpaceAvailable"}] responseObject:nil];
             return;
         }
     }
     
-    [super URLSession:session dataTask:dataTask didReceiveData:data];
+    [super dataTask:dataTask didReceiveData:data];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+- (void)task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error responseObject:(id)responseObject {
     [self.outputStream close];
     [self setOutputStream:nil];
-    [super URLSession:session task:task didCompleteWithError:error];
-}
-
-@end
-
-#pragma mark - ARNetworkingUploadTask
-
-@interface ARNetworkingUploadTask : ARNetworking
-@property (nonatomic, strong) NSURLSessionUploadTask *sessionUploadTask;
-@property (nonatomic, copy) NSString *fileUrl;
-@property (nonatomic, strong) NSString *paramName;
-@property (nonatomic, strong) NSProgress *progress;
-@end
-
-@implementation ARNetworkingUploadTask
-
-+ (ARNetworking *)UploadWithUrl:(NSString *)url fromFile:(NSString *)fileUrl paramName:(NSString *)paramName completionHandler:(ARNetworkCompletionHandler)completionHandler {
-    ARNetworkingUploadTask *networkingUploadTask = [[ARNetworkingUploadTask alloc] init];
-    networkingUploadTask.fileUrl = fileUrl;
-    networkingUploadTask.paramName = paramName;
-    networkingUploadTask.completionHandler = completionHandler;
-    
-    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] multipartFormRequestWithMethod:@"POST" URLString:url parameters:nil constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
-        [formData appendPartWithFileData:[NSData dataWithContentsOfFile:fileUrl] name:paramName fileName:fileUrl.lastPathComponent mimeType:@"text/plain"];
-    } error:nil];
-    [request setHTTPMethod:@"POST"];
-    networkingUploadTask.request = [request copy];
-    
-    return networkingUploadTask;
-}
-
-- (void)resume {
-    [super resume];
-    
-    __weak typeof(self) weakSelf = self;
-    self.sessionUploadTask = [self.sessionManager uploadTaskWithStreamedRequest:self.request progress:nil completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (self) {
-            if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
-                self.httpURLResponse = (NSHTTPURLResponse *)response;
-            }
-            if (self.completionHandler) {
-                self.completionHandler(error, responseObject);
-            }
-            self.strongSelf = nil;
-        }
-    }];
-    
-    [self.sessionManager setTaskDidSendBodyDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, int64_t bytesSent, int64_t totalBytesSent, int64_t totalBytesExpectedToSend) {
-        __strong typeof(weakSelf) self = weakSelf;
-        self.progress.totalUnitCount = totalBytesExpectedToSend;
-        self.progress.completedUnitCount = totalBytesSent;
-        if (self.uploadProgressCallback) {
-            self.uploadProgressCallback(self.progress);
-        }
-    }];
-    
-    self.progress = [self.sessionManager uploadProgressForTask:self.sessionUploadTask];
-    
-    [self.sessionUploadTask resume];
-}
-
-- (void)cancel {
-    [super cancel];
-    [self.sessionUploadTask cancel];
+    [super task:task didCompleteWithError:error responseObject:responseObject];
 }
 
 @end
@@ -324,27 +190,15 @@ didCompleteWithError:(NSError *)error;
 #pragma mark - ARNetworking
 
 @interface ARNetworking()
-@property (nonatomic, strong) AFHTTPSessionManager *sessionManager;
+@property (nonatomic, strong) ARNetworking *strongSelf;
 @property (nonatomic, strong) NSMutableDictionary *headers;
+@property (nonatomic, strong) NSURLSessionDataTask *sessionDataTask;
 @end
 
-@implementation ARNetworking {
-    BOOL _isResumed;
-    BOOL _isCancelled;
-    ARNetworking *_strongSelf;
-}
+@implementation ARNetworking
 
 - (void)dealloc {
-    [self.sessionManager invalidateSessionCancelingTasks:YES];
     NSLog(@"[ARNetworking]dealloc");
-}
-
-- (ARNetworking *)strongSelf {
-    return _strongSelf;
-}
-
-- (void)setStrongSelf:(ARNetworking *)strongSelf {
-    _strongSelf = strongSelf;
 }
 
 #pragma mark -
@@ -354,19 +208,30 @@ static NSString *UserAgent = nil;
     UserAgent = userAgent;
 }
 
+- (AFHTTPSessionManager *)sessionManager {
+    static AFHTTPSessionManager *_sessionManager;
+    static dispatch_queue_t arnet_completion_queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _sessionManager = [AFHTTPSessionManager manager];
+        _sessionManager.securityPolicy.allowInvalidCertificates = YES;
+        _sessionManager.securityPolicy.validatesDomainName = NO;
+        _sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", @"application/octet-stream", nil];
+        [_sessionManager setDataTaskDidReceiveResponseBlock:^NSURLSessionResponseDisposition(NSURLSession * _Nonnull session, NSURLSessionDataTask * _Nonnull dataTask, NSURLResponse * _Nonnull response) {
+            return [dataTask.proxy.delegate dataTask:dataTask didReceiveResponse:response];
+        }];
+        [_sessionManager setDataTaskDidReceiveDataBlock:^(NSURLSession * _Nonnull session, NSURLSessionDataTask * _Nonnull dataTask, NSData * _Nonnull data) {
+            [dataTask.proxy.delegate dataTask:dataTask didReceiveData:data];
+        }];
+        arnet_completion_queue = dispatch_queue_create("com.arnetworking", DISPATCH_QUEUE_CONCURRENT);
+        _sessionManager.completionQueue = arnet_completion_queue;
+    });
+    return _sessionManager;
+}
+
 - (instancetype)init {
     if (self = [super init]) {
-        self.sessionManager = [AFHTTPSessionManager manager];
-        self.sessionManager.securityPolicy.allowInvalidCertificates = YES;
-        self.sessionManager.securityPolicy.validatesDomainName = NO;
-        self.sessionManager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/javascript", @"text/html", @"text/plain", @"application/javascript", @"application/octet-stream", nil];
-        self.sessionManager.session.sessionDescription = sessionDescription;
-        
-        self.timeoutInterval = 15.0f;
-        self.shouldUseCookie = YES;
-        
-        _isResumed = NO;
-        _isCancelled = NO;
+        _timeoutInterval = 15.0f;
     }
     return self;
 }
@@ -392,14 +257,6 @@ static NSString *UserAgent = nil;
     return self;
 }
 
-- (void)setCompletionQueue:(dispatch_queue_t)completionQueue {
-    self.sessionManager.completionQueue = completionQueue;
-}
-
-- (dispatch_queue_t)completionQueue {
-    return self.sessionManager.completionQueue;
-}
-
 #pragma mark - public initial method
 
 + (ARNetworking *)GETWithUrl:(NSString *)url parameters:(id)parameters completionHandler:(ARNetworkCompletionHandler)completionHandler {
@@ -414,60 +271,36 @@ static NSString *UserAgent = nil;
 
 + (ARNetworking *)DownloadWithUrl:(NSString *)url destination:(NSString *)destinationPath offset:(NSUInteger)offset completionHandler:(ARNetworkCompletionHandler)completionHandler {
     ARNetworking *downloadNetworking = [ARNetworkingDownloadTask DownloadWithUrl:url destination:destinationPath offset:offset completionHandler:completionHandler];
-    downloadNetworking.sessionManager.responseSerializer = [AFHTTPResponseSerializer serializer];
-    downloadNetworking.sessionManager.responseSerializer.acceptableStatusCodes = [NSIndexSet indexSetWithIndex:206];
     return downloadNetworking;
-}
-
-+ (ARNetworking *)UploadWithUrl:(NSString *)url fromFile:(NSString *)fileUrl paramName:(NSString *)paramName completionHandler:(ARNetworkCompletionHandler)completionHandler {
-    return [ARNetworkingUploadTask UploadWithUrl:url fromFile:fileUrl paramName:paramName completionHandler:completionHandler];
 }
 
 #pragma mark - public instance method
 
 - (void)resume {
-    
-    if (_isResumed) {
-        return;
-    }
-    
-    _isResumed = YES;
-    _isCancelled = NO;
+    self.strongSelf = self;
     
     NSMutableURLRequest *req = [self.request mutableCopy];
-    req.timeoutInterval = self.timeoutInterval;
-    req.HTTPShouldHandleCookies = self.shouldUseCookie;
+    req.timeoutInterval = _timeoutInterval;
+    req.HTTPShouldHandleCookies = YES;
     for (NSString *key in self.headers.allKeys) {
         [req setValue:self.headers[key] forHTTPHeaderField:key];
     }
-    
     if (UserAgent) {
         [req setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
     }
-    
     self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
     
-    self.strongSelf = self;
-    __weak ARNetworking *weakSelf = self;
-    [self.sessionManager setTaskDidCompleteBlock:^(NSURLSession * _Nonnull session, NSURLSessionTask * _Nonnull task, NSError * _Nullable error) {
+    __weak typeof(self) weakSelf = self;
+    self.sessionDataTask = [self.sessionManager dataTaskWithRequest:self.request completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
         __strong typeof(weakSelf) self = weakSelf;
-        [self.sessionManager.session finishTasksAndInvalidate];
-        [self URLSession:session task:task didCompleteWithError:error];
+        [self task:self.sessionDataTask didCompleteWithError:error responseObject:responseObject];
     }];
-    
-    if ([self isMemberOfClass:[ARNetworking class]]) {
-        [[self.sessionManager dataTaskWithRequest:self.request completionHandler:nil] resume];
-    }
+    self.sessionDataTask.proxy.delegate = self;
+    [self.sessionDataTask resume];
 }
 
 - (void)cancel {
-    if (_isCancelled) {
-        return;
-    }
-    
-    [self.sessionManager.operationQueue cancelAllOperations];
-    [self.sessionManager.session invalidateAndCancel];
-    _isCancelled = YES;
+    [self.sessionDataTask cancel];
 }
 
 #pragma mark - setter
@@ -489,18 +322,30 @@ static NSString *UserAgent = nil;
     return _headers;
 }
 
-#pragma mark - private method
+#pragma mark - ARNetworkingTaskDelegate
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
-    if ([self isMemberOfClass:[ARNetworking class]]) {
-        if ([task.response isKindOfClass:[NSHTTPURLResponse class]]) {
-            self.httpURLResponse = (NSHTTPURLResponse *)task.response;
-        }
-        if (self.completionHandler) {
-            self.completionHandler(error, nil);
-        }
-        self.strongSelf = nil;
+- (NSURLSessionResponseDisposition *)dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
+    self.httpURLResponse = (NSHTTPURLResponse *)response;
+    if (self.didReceiveResponseCallback) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.didReceiveResponseCallback(self.httpURLResponse);
+        });
     }
+    return NSURLSessionResponseAllow;
+}
+
+- (void)dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {}
+
+- (void)task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error responseObject:(id)responseObject {
+    if ([task.response isKindOfClass:[NSHTTPURLResponse class]]) {
+        self.httpURLResponse = (NSHTTPURLResponse *)task.response;
+    }
+    if (self.completionHandler) {
+        dispatch_async(self.completionQueue ?: dispatch_get_main_queue(), ^{
+            self.completionHandler(error, responseObject);
+        });
+    }
+    self.strongSelf = nil;
 }
 
 @end
