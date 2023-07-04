@@ -19,6 +19,7 @@ typedef void(^ARDataTaskDidReceiveDataBlock)(NSURLSession *session,NSURLSessionD
 
 @interface AFHTTPSessionManager(ARNetworking)
 @property (nonatomic, copy) ARDataTaskDidReceiveDataBlock ar_dataTaskDidReceiveDataBlock;
+- (NSObject *)delegateForTask:(NSURLSessionTask *)task;
 @end
 
 @implementation AFHTTPSessionManager(ARNetworking)
@@ -190,6 +191,14 @@ didCompleteWithError:(NSError *)error;
     }];
     
     [super resume];
+    
+    if ([self.sessionManager respondsToSelector:@selector(delegateForTask:)]) {
+        NSObject *delegate = [self.sessionManager delegateForTask:self.sessionDataTask];
+        if ([(NSStringFromClass(delegate.class)) isEqualToString:@"AFURLSessionManagerTaskDelegate"]) {
+            //将AFURLSessionManagerTaskDelegate的属性字段mutableData置空是因为每次下载datatask每次接收到数据会被存起来，如果是下载文件内存将暴增
+            [delegate setValue:nil forKeyPath:@"mutableData"];
+        }
+    }
 }
 
 - (void)cancel {
