@@ -291,7 +291,7 @@ static NSString *UserAgent = nil;
     self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
     
     __weak typeof(self) weakSelf = self;
-    self.sessionDataTask = [self.sessionManager dataTaskWithRequest:self.request completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
+    self.sessionDataTask = [self.sessionManager dataTaskWithRequest:self.request uploadProgress:nil downloadProgress:nil completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
         __strong typeof(weakSelf) self = weakSelf;
         [self task:self.sessionDataTask didCompleteWithError:error responseObject:responseObject];
     }];
