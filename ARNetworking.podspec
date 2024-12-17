@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'ARNetworking'
-  s.version          = '1.0.7'
+  s.version          = '1.0.8'
   s.summary          = 'A short description of ARNetworking.'
 
 # This description is used to generate tags and improve search results.
@@ -33,6 +33,6 @@ TODO: Add long description of the pod here.
   s.source_files = 'Classes/ARNetworking.h','Classes/ARNetworking.m'
   s.public_header_files = 'Classes/*.{h}'
   
-  s.dependency 'AFNetworking/NSURLSession','~> 3.0'
+  s.dependency 'AFNetworking','~> 4.0.0'
 
 end
