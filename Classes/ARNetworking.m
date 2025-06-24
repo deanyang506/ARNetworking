@@ -142,7 +142,8 @@ static const char ARNetworkingTaskProxKey;
 }
 
 - (NSURLSessionResponseDisposition *)dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response {
-    if (((NSHTTPURLResponse *)response).statusCode == 206) {
+    NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
+    if (statusCode == 200 || statusCode == 206) {
         [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.outputStream open];
     }
