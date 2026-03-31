@@ -289,7 +289,7 @@ static NSString *UserAgent = nil;
     if (UserAgent) {
         [req setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
     }
-    self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:nil];
+    self.request = [self.sessionManager.requestSerializer requestBySerializingRequest:req withParameters:self.parameters error:&_serializingError];
     
     __weak typeof(self) weakSelf = self;
     self.sessionDataTask = [self.sessionManager dataTaskWithRequest:self.request uploadProgress:nil downloadProgress:nil completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {

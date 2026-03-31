@@ -40,6 +40,8 @@ typedef void(^ARNetworkCompletionHandler)(NSError *error,id responseObj);
 /** 完成后回调队列 */
 @property (nonatomic, strong) dispatch_queue_t completionQueue;
 
+@property (nonatomic, strong) NSError *serializingError;
+
 /**
  自定义请求方式
  OPTIONS,HEAD,GET,POST,PUT,DELETE,CONNECT
