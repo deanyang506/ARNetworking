@@ -242,14 +242,8 @@ static NSString *UserAgent = nil;
                     parameters:(id)parameters
              completionHandler:(ARNetworkCompletionHandler)completionHandler {
     if (self = [self init]) {
-        NSError *error = nil;
-        NSMutableURLRequest *request = [self.sessionManager.requestSerializer requestWithMethod:method URLString:url parameters:nil error:&error];
-        if (error || request == nil) {
-            request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
-            [request setHTTPMethod:method];
-            request = [[self.sessionManager.requestSerializer requestBySerializingRequest:request withParameters:nil error:nil] mutableCopy];
-        }
-        
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+        [request setHTTPMethod:method];
         self.request = [request copy];
         self.parameters = parameters;
         self.completionHandler = completionHandler;
